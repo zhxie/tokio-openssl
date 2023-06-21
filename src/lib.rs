@@ -14,6 +14,7 @@ use std::pin::Pin;
 use std::slice;
 use std::task::{Context, Poll};
 use tokio::io::{AsyncRead, AsyncWrite, ReadBuf};
+use tokio::time::{self, Duration};
 
 #[cfg(test)]
 mod test;
@@ -121,7 +122,19 @@ where
 
     /// A convenience method wrapping [`poll_connect`](Self::poll_connect).
     pub async fn connect(mut self: Pin<&mut Self>) -> Result<(), ssl::Error> {
-        future::poll_fn(|cx| self.as_mut().poll_connect(cx)).await
+        loop {
+            match future::poll_fn(|cx| self.as_mut().poll_connect(cx)).await {
+                Ok(()) => {
+                    return Ok(());
+                }
+                Err(e) => {
+                    if e.code() != ErrorCode::WANT_ASYNC {
+                        return Err(e);
+                    }
+                    time::sleep(Duration::from_millis(1)).await;
+                }
+            }
+        }
     }
 
     /// Like [`SslStream::accept`](ssl::SslStream::accept).
@@ -131,7 +144,19 @@ where
 
     /// A convenience method wrapping [`poll_accept`](Self::poll_accept).
     pub async fn accept(mut self: Pin<&mut Self>) -> Result<(), ssl::Error> {
-        future::poll_fn(|cx| self.as_mut().poll_accept(cx)).await
+        loop {
+            match future::poll_fn(|cx| self.as_mut().poll_accept(cx)).await {
+                Ok(()) => {
+                    return Ok(());
+                }
+                Err(e) => {
+                    if e.code() != ErrorCode::WANT_ASYNC {
+                        return Err(e);
+                    }
+                    time::sleep(Duration::from_millis(1)).await;
+                }
+            }
+        }
     }
 
     /// Like [`SslStream::do_handshake`](ssl::SslStream::do_handshake).
